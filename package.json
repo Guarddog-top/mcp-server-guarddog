@@ -1,0 +1,45 @@
+{
+  "name": "guarddog-mcp",
+  "version": "1.0.0",
+  "description": "\ud83d\udc15 Check if a token is SAFE before your AI agent trades it \u2014 one call, PASS/WARN/BLOCK. MCP server for AgentTradeGuard: honeypot detection, contract audit, liquidity structure, 4 live sources (GoPlus/Etherscan/DEX Screener/honeypot.is), millisecond verdicts on ETH/BSC/Solana.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guarddog-top/mcp-server-guarddog.git"
+  },
+  "homepage": "https://guarddog.top",
+  "bugs": "https://github.com/guarddog-top/mcp-server-guarddog/issues",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "cursor",
+    "token",
+    "safety",
+    "honeypot",
+    "rugpull",
+    "crypto",
+    "trading",
+    "agent",
+    "solana",
+    "bsc",
+    "ethereum",
+    "defi"
+  ],
+  "bin": {
+    "guarddog-mcp": "bin/guarddog-mcp.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE",
+    "smithery.yaml"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node test/smoke.js"
+  }
+}
