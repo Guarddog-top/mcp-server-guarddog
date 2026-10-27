@@ -33,7 +33,7 @@ First run prepares a shared Python env (~30–60s, needs **Python 3.10+**), afte
 
 ```
 check_address(chain, address, action="swap")
-  chain:   "eth" | "bsc" | "solana"
+  chain:   "eth" | "bsc" | "solana" | "base"
   address: token contract / pool address (0x... or solana base58)
   action:  "swap" (default) | "approve"
 ```
