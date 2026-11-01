@@ -1,29 +1,39 @@
-"""ATG MCP Server (M2 核心交付): /v1/check 的 MCP 协议纯包装层。
-四源引擎零改动（m1-candidate 冻结），本层只做协议转换。
-SDK v2 (MCPServer, mcp>=2.3)。
-运行: python -m atg.mcp_server.server  (stdio transport)
+"""ATG MCP Server v1.0.1: cloud-API backed thin client (stdio transport).
+
+v1.0.0 在用户本地跑整套引擎(需PG/Redis/Etherscan key, venv 60s, 使用零遥测)。
+v1.0.1 改为直连 api.guarddog.top/v1/check —— 同一套四源引擎, 服务端落库:
+- venv 只需 mcp+httpx (~10s), 无本地数据库/密钥要求
+- MCP 流量经 beta token 归因为独立 agent_id, 使用量首次可测
+- 裁定对齐 2026-10-18: MCP跃点必须落库。本地引擎=军团流量黑洞。
+
+运行: python -m atg.mcp_server.server
 """
+import httpx
 from mcp.server.mcpserver import MCPServer
 
-from atg.engine.runner import CheckRunner
+BASE = "https://api.guarddog.top/v1/check"
+BETA_TOKEN = "free-during-beta"  # AGENTS.md 公开的 beta 免费token
+UA = "guarddog-mcp/1.0.1"
+CHAINS = ("eth", "bsc", "solana")
+ACTIONS = ("swap", "approve")
 
-RUNNER = CheckRunner()
 
-
-async def init_runner() -> CheckRunner:
-    """main()启动时调用：接repo（PG不可达=NullRepo降级）+cache（可选）。
-    裁定2026-10-18：MCP跃点必须落库——军团主力走MCP，不落=丢90%流量统计。"""
-    from atg.cache.redis_client import VerdictCache
-    from atg.config import SETTINGS
-    from atg.db.repo import make_repo
-    RUNNER.repo = await make_repo(SETTINGS.database_url)
-    try:
-        c = VerdictCache()
-        await c.get("__ping__", "__ping__", "__ping__")
-        RUNNER.cache = c
-    except Exception:
-        RUNNER.cache = None  # Redis不可用=直连模式
-    return RUNNER
+async def _cloud_check(chain: str, address: str, action: str) -> dict:
+    params = {"chain": chain, "target": address, "action": action}
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(BASE, params=params,
+                        headers={"User-Agent": UA, "X-GuardDog-Token": BETA_TOKEN})
+        if r.status_code in (401, 403):  # beta token 被拒 → 匿名重试(50/天/IP)
+            r = await c.get(BASE, params=params, headers={"User-Agent": UA})
+    if r.status_code >= 400:
+        try:
+            err = r.json()
+            raise RuntimeError(
+                f"guarddog api {r.status_code}: {err.get('error', '?')} "
+                f"— hint: {err.get('hint', '-')}")
+        except ValueError:
+            raise RuntimeError(f"guarddog api {r.status_code}: {r.text[:120]}")
+    return r.json()
 
 
 def build_server() -> MCPServer:
@@ -39,7 +49,7 @@ def build_server() -> MCPServer:
                      "PASS = safe to proceed. "
                      "data_limited=true means partial data; "
                      "unknown_token=true means no on-chain footprint.",
-        version="2.1.0",
+        version="1.0.1",
     )
 
     async def check_address(chain: str, address: str,
@@ -59,11 +69,11 @@ def build_server() -> MCPServer:
             verdict, risk_score (0-100), reasons[] (human-readable),
             covered (insurance eligibility), data_limited, unknown_token
         """
-        if chain not in ("eth", "bsc", "solana"):
+        if chain not in CHAINS:
             raise ValueError("unsupported chain: %s (eth|bsc|solana)" % chain)
-        if action not in ("swap", "approve"):
+        if action not in ACTIONS:
             raise ValueError("unsupported action: %s (swap|approve)" % action)
-        return await RUNNER.check(chain, address, action, source="mcp")
+        return await _cloud_check(chain, address, action)
 
     server.add_tool(check_address, name="check_address",
                     title="ATG 风控检查",
@@ -73,23 +83,13 @@ def build_server() -> MCPServer:
 
 
 def main():
-    """MCP loop v2：统一 anyio 单 loop（根治跨loop InterfaceError）。
-
-    旧版 asyncio.run(init_runner()) 让 asyncpg pool 绑死 loop A，
-    server.run() 内部 anyio 另起 loop B -> 跨loop用pool被 _persist
-    静默吞 -> MCP永不落库零日志（守门人20261019部署实锤）。
-    现形：一个 anyio.run 里先 init 后 run_stdio_async，同生共死。
-    """
-    import logging
+    """MCP stdio loop. v1.0.1 起无本地资源需要预热, 直接起服务。"""
     import anyio
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # 防URL(含apikey)入日志
+
+    async def _amain():
+        await build_server().run_stdio_async()
+
     anyio.run(_amain)
-
-
-async def _amain():
-    await init_runner()
-    server = build_server()
-    await server.run_stdio_async()  # 与pool同一loop内运行
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 
 MCP server for [AgentTradeGuard](https://guarddog.top) — agent-first token safety:
 honeypot detection, contract audit, liquidity structure, **P95 23ms** verdicts.
-Runs the same 4-source engine as the public API: **GoPlus + Etherscan V2 + DEX Screener + honeypot.is**, locally in your MCP client.
+Powered by the same 4-source engine as the public API: **GoPlus + Etherscan V2 + DEX Screener + honeypot.is**, served live from `api.guarddog.top` — always fresh, zero local keys.
 
 Source & issues: [github.com/guarddog-top/mcp-server-guarddog](https://github.com/guarddog-top/mcp-server-guarddog) · Prefer REST? [`api.guarddog.top/v1/check`](https://api.guarddog.top/v1/check)
 
@@ -13,6 +13,15 @@ You:  "check 0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82 on bsc before I buy"
 Dog:  ✅ PASS — risk_score 0, no honeypot flags, pool healthy
       (or) 🦴 BLOCK: sell_tax 99%, pool age 2d, honeypot flagged — DO NOT TRADE
 ```
+
+## Quickstart — 3 lines, verified in 3 seconds (no Python, no MCP client)
+
+```bash
+npx -y guarddog-mcp --smoke
+# 🐕 GuardDog SMOKE PASS — WETH on eth | risk_score=0 | 180ms
+```
+
+That just ran a real check against the live API. Install verified.
 
 ## Install — Claude Desktop / Cursor / any MCP client
 
@@ -27,7 +36,7 @@ Dog:  ✅ PASS — risk_score 0, no honeypot flags, pool healthy
 }
 ```
 
-First run prepares a shared Python env (~30–60s, needs **Python 3.10+**), after that every start is instant. No API key needed — free during beta.
+First run prepares a shared Python env (**~10s**, needs Python 3.10+), after that every start is instant. No API key needed — free during beta. Stuck on Python? `npx -y guarddog-mcp --smoke` works without it, and the plain REST API needs nothing but curl.
 
 ## The one tool
 
