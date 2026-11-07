@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// guarddog-mcp v1.0.1 npx入口
+// guarddog-mcp v1.0.4 npx入口
 // - --smoke: 3秒零依赖实测(纯Node, 无需Python) — 装完即可验证
 // - 信标: 安装漏斗遥测走 /v1/health?beacon=...(nginx落日志, 不依赖服务端改动)
 // - MCP模式: 共享venv, 仅装 mcp+httpx (~10s), 检查直连云端API
@@ -8,7 +8,7 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
-const VERSION = "1.0.1";
+const VERSION = "1.0.4";
 const API = "https://api.guarddog.top";
 const SMOKE_TARGET = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // WETH(eth) 规范冒烟目标
 const LIB = path.join(__dirname, "..", "lib");

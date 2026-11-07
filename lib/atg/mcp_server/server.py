@@ -7,14 +7,23 @@ v1.0.1 改为直连 api.guarddog.top/v1/check —— 同一套四源引擎, 服�
 - 裁定对齐 2026-10-18: MCP跃点必须落库。本地引擎=军团流量黑洞。
 
 运行: python -m atg.mcp_server.server
+
+v1.0.4 (2026-11-07 验收回炉版, 基座=1.0.1 云端瘦客户端):
+- 补齐 MCP 标准工具元数据 ToolAnnotations(readOnly/destructive/idempotent/openWorld)
+  —— M8ven Trust Index 独立审计扣分项, 所有 MCP 目录通用加分
+- 链表扩为 eth|bsc|solana|base|arc: base 对齐 2026-10-27 四链裁决;
+  arc(Circle Agent L1)为框架级支持 —— 检测源接入前返回 covered=false, 不虚标检测力
+- 教训存档: 1.0.2/1.0.3 曾从 M2 旧基座打包(本地引擎+全栈venv), 系 repo 分裂所致。
+  发版纪律: npm pack 解包后 grep readOnlyHint/cloud BASE/--smoke 三证齐全才许 publish。
 """
 import httpx
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 
 BASE = "https://api.guarddog.top/v1/check"
 BETA_TOKEN = "free-during-beta"  # AGENTS.md 公开的 beta 免费token
-UA = "guarddog-mcp/1.0.1"
-CHAINS = ("eth", "bsc", "solana")
+UA = "guarddog-mcp/1.0.4"
+CHAINS = ("eth", "bsc", "solana", "base", "arc")
 ACTIONS = ("swap", "approve")
 
 
@@ -49,7 +58,7 @@ def build_server() -> MCPServer:
                      "PASS = safe to proceed. "
                      "data_limited=true means partial data; "
                      "unknown_token=true means no on-chain footprint.",
-        version="1.0.1",
+        version="1.0.4",
     )
 
     async def check_address(chain: str, address: str,
@@ -61,7 +70,9 @@ def build_server() -> MCPServer:
         honeypot/scam detected).
 
         Args:
-            chain: the chain the token is on: 'eth' | 'bsc' | 'solana'
+            chain: 'eth' | 'bsc' | 'solana' | 'base' | 'arc'
+                (arc = Circle Agent L1, framework-level support:
+                 detection sources not yet integrated, returns covered=false)
             address: token contract address (0x... or solana base58)
             action: what your agent is about to do: 'swap' | 'approve'
 
@@ -70,15 +81,42 @@ def build_server() -> MCPServer:
             covered (insurance eligibility), data_limited, unknown_token
         """
         if chain not in CHAINS:
-            raise ValueError("unsupported chain: %s (eth|bsc|solana)" % chain)
+            raise ValueError(
+                "unsupported chain: %s (eth|bsc|solana|base|arc)" % chain)
         if action not in ACTIONS:
             raise ValueError("unsupported action: %s (swap|approve)" % action)
-        return await _cloud_check(chain, address, action)
+        try:
+            return await _cloud_check(chain, address, action)
+        except RuntimeError as e:
+            # arc: 云端检测源未接入(REST 缓行, MCP 先行) —— 优雅降级, 不虚标检测力
+            # 注: 云端对非法链返回 422 invalid_chain(FastAPI 校验), 非 400
+            if chain == "arc" and "invalid_chain" in str(e):
+                return {
+                    "chain": "arc",
+                    "verdict": "UNKNOWN",
+                    "covered": False,
+                    "risk_score": None,
+                    "reasons": [
+                        "arc (Circle Agent L1) detection sources not yet "
+                        "integrated — framework-level support only",
+                        "treat any arc target as unverified until live "
+                        "coverage lands",
+                    ],
+                    "note": "GuardDog is Arc-framework-ready; live detection "
+                            "for arc is coming. This response is an explicit "
+                            "not-covered signal, not a PASS.",
+                }
+            raise
 
     server.add_tool(check_address, name="check_address",
                     title="ATG 风控检查",
                     description="下单/授权前查链上目标风险："
-                                "蜜罐检测+合约审计+流动性结构，毫秒级三档判定")
+                                "蜜罐检测+合约审计+流动性结构，毫秒级三档判定",
+                    annotations=ToolAnnotations(
+                        readOnlyHint=True,
+                        destructiveHint=False,
+                        idempotentHint=True,
+                        openWorldHint=True))
     return server
 
 
